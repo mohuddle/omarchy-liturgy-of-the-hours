@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.mohuddle.liturgy-of-the-hours",
+  "name": "Liturgy of the Hours",
+  "version": "1.0.0",
+  "author": "mohuddle",
+  "description": "Daily Scripture and reminders for Morning and Evening Prayer, plus the little hours of Prime, Terce, Sext, and None.",
+  "license": "MIT",
+  "tags": ["prayer", "bible", "liturgy", "hours", "reminder"],
+  "kinds": ["bar-widget"],
+  "entryPoints": { "barWidget": "BarWidget.qml" },
+  "barWidget": {
+    "displayName": "Liturgy of the Hours",
+    "description": "Jerusalem Cross with daily Scripture and canonical-hour reminders",
+    "category": "Productivity",
+    "allowMultiple": false,
+    "defaultSection": "right",
+    "defaults": {
+      "translation": "web",
+      "verseSequence": "sequential",
+      "notificationsEnabled": true,
+      "morningEnabled": true,
+      "morningTime": "06:00",
+      "primeEnabled": true,
+      "primeTime": "07:00",
+      "terceEnabled": true,
+      "terceTime": "09:00",
+      "sextEnabled": true,
+      "sextTime": "12:00",
+      "noneEnabled": true,
+      "noneTime": "15:00",
+      "eveningEnabled": true,
+      "eveningTime": "18:00"
+    },
+    "schema": [
+      { "key": "translation", "type": "string", "label": "Bible translation", "defaultValue": "web" },
+      { "key": "verseSequence", "type": "string", "label": "Scripture order: sequential or random", "defaultValue": "sequential" },
+      { "key": "notificationsEnabled", "type": "boolean", "label": "Desktop reminders at each hour", "defaultValue": true },
+      { "key": "morningEnabled", "type": "boolean", "label": "Morning Prayer (Lauds)", "defaultValue": true },
+      { "key": "morningTime", "type": "string", "label": "Morning Prayer time (HH:MM)", "defaultValue": "06:00" },
+      { "key": "primeEnabled", "type": "boolean", "label": "Prime", "defaultValue": true },
+      { "key": "primeTime", "type": "string", "label": "Prime time (HH:MM)", "defaultValue": "07:00" },
+      { "key": "terceEnabled", "type": "boolean", "label": "Terce", "defaultValue": true },
+      { "key": "terceTime", "type": "string", "label": "Terce time (HH:MM)", "defaultValue": "09:00" },
+      { "key": "sextEnabled", "type": "boolean", "label": "Sext", "defaultValue": true },
+      { "key": "sextTime", "type": "string", "label": "Sext time (HH:MM)", "defaultValue": "12:00" },
+      { "key": "noneEnabled", "type": "boolean", "label": "None", "defaultValue": true },
+      { "key": "noneTime", "type": "string", "label": "None time (HH:MM)", "defaultValue": "15:00" },
+      { "key": "eveningEnabled", "type": "boolean", "label": "Evening Prayer (Vespers)", "defaultValue": true },
+      { "key": "eveningTime", "type": "string", "label": "Evening Prayer time (HH:MM)", "defaultValue": "18:00" }
+    ]
+  }
+}
