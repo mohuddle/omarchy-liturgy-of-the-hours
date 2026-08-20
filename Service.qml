@@ -3,10 +3,8 @@ import Quickshell
 import Quickshell.Io
 import "Model.js" as Model
 
-// Persistent office state. Verse cache lives under ~/.local/state/omarchy
-// (same convention as the Bible Verse and Canon plugins) so it survives
-// plugin updates. A timer watches local clock time and fires one desktop
-// reminder per enabled hour per day.
+// Persistent office state. Daily Scripture is the bundled Berean Standard
+// Bible catalogue (data/verses.json), so nothing is fetched at runtime.
 Item {
   id: root
   property var settings: ({})
@@ -15,15 +13,17 @@ Item {
   readonly property string stateDir: home + "/.local/state/omarchy/settings/"
   readonly property string cachePath: stateDir + "liturgy-of-the-hours.json"
   readonly property string iconPath: Qt.resolvedUrl("icon.png").toString().replace(/^file:\/\//, "")
-  readonly property string translation: Model.choice(setting("translation", "web"), Model.translationCodes(), "web")
+  readonly property string versesPath: Model.fileUrlToPath(Qt.resolvedUrl("data/verses.json"))
   readonly property bool notificationsEnabled: Model.boolSetting(setting("notificationsEnabled", true), true)
   readonly property var schedule: Model.scheduleState(clock.date, settings)
   readonly property var currentHour: schedule.current
   readonly property var nextHour: schedule.next
+  readonly property var featured: Model.featuredHour(schedule)
   readonly property bool hourIsNow: Model.isCurrentWindow(currentHour, schedule.nowMinutes, nextHour, 20)
+  readonly property string heroMeta: Model.heroMeta(featured)
 
   property bool loaded: false
-  property bool loading: false
+  property var catalog: ({ verses: [] })
   property string lastError: ""
   property int versePosition: -1
   property string cachedDate: ""
@@ -31,17 +31,10 @@ Item {
   property var lastNotified: ({})
   property string verseReference: ""
   property string verseText: ""
-  property string verseTranslation: ""
   property string selectedHourId: ""
-  property string fetchOutput: ""
-
-  readonly property var selectedHour: {
-    var id = selectedHourId
-    var hours = schedule.all || []
-    for (var i = 0; i < hours.length; i++) if (hours[i].id === id) return hours[i]
-    return hourIsNow ? currentHour : nextHour
-  }
-  readonly property string statusText: loading ? "Loading…" : (verseReference !== "" ? verseReference : (lastError !== "" ? lastError : "Liturgy of the Hours"))
+  readonly property string verseTranslation: "Berean Standard Bible"
+  readonly property int catalogLength: Model.catalogVerses(catalog).length
+  readonly property string statusText: verseReference !== "" ? verseReference : (lastError !== "" ? lastError : "Liturgy of the Hours")
   readonly property string tooltipText: {
     if (hourIsNow && currentHour) return currentHour.name + " · now"
     if (nextHour) {
@@ -56,8 +49,6 @@ Item {
     precision: SystemClock.Minutes
     onDateChanged: root.refreshIfStale()
   }
-
-  onTranslationChanged: root.refreshIfStale()
 
   function setting(name, fallback) {
     var v = settings ? settings[name] : undefined
@@ -77,7 +68,6 @@ Item {
       verse_position: versePosition,
       reference: verseReference,
       text: verseText,
-      translationName: verseTranslation,
       last_notified: lastNotified
     }, null, 2) + "\n")
   }
@@ -89,7 +79,6 @@ Item {
     versePosition = data.verse_position === undefined ? -1 : Number(data.verse_position)
     if (data.reference) verseReference = String(data.reference)
     if (data.text) verseText = String(data.text)
-    if (data.translationName) verseTranslation = String(data.translationName)
     lastNotified = data.last_notified && typeof data.last_notified === "object" ? data.last_notified : ({})
     loaded = true
     refreshIfStale()
@@ -98,38 +87,44 @@ Item {
 
   function advanceIfNeeded() {
     var date = todayIso()
+    var length = catalogLength || Model.VERSES.length
     if (cachedDate === date && versePosition >= 0) return
-    versePosition = Model.nextPosition(versePosition, Model.VERSES.length, setting("verseSequence", "sequential"), date + "v")
+    versePosition = Model.nextPosition(versePosition, length, setting("verseSequence", "sequential"), date + "v")
+  }
+
+  function applyToday() {
+    advanceIfNeeded()
+    var rec = Model.verseFromCatalog(catalog, versePosition)
+    if (!rec) {
+      lastError = catalogLength === 0 ? "Couldn’t load today’s Scripture." : "No Scripture for today."
+      return
+    }
+    verseReference = rec.reference
+    verseText = rec.text
+    cachedDate = todayIso()
+    cachedTranslation = "bsb"
+    lastError = ""
+    saveCache()
   }
 
   function refreshIfStale() {
-    if (!loaded || bibleProc.running) return
-    var date = todayIso()
-    if (cachedDate === date && cachedTranslation === translation && verseText !== "") return
-    advanceIfNeeded()
-    fetchVerse()
+    if (!loaded || catalogLength === 0) return
+    if (cachedDate === todayIso() && cachedTranslation === "bsb" && verseText !== "") return
+    applyToday()
   }
 
   function load(force) {
+    if (catalogLength === 0) {
+      versesFile.reload()
+      return
+    }
     if (force === true) {
-      cachedTranslation = ""
-      fetchVerse()
+      cachedDate = ""
+      applyToday()
       return
     }
     if (!loaded) return
     refreshIfStale()
-  }
-
-  function fetchVerse() {
-    if (bibleProc.running) return
-    loading = true
-    lastError = ""
-    var ref = Model.verseForPosition(versePosition)
-    bibleProc.requestedReference = ref
-    bibleProc.requestedTranslation = translation
-    bibleProc.requestedDate = todayIso()
-    bibleProc.command = ["curl", "-fsS", "--max-time", "8", Model.bibleUrl(ref, translation)]
-    bibleProc.running = true
   }
 
   function selectHour(id) { selectedHourId = id || "" }
@@ -168,21 +163,7 @@ Item {
       "-g", "☩",
       "--image", iconPath,
       verseReference !== "" ? verseReference : "Today’s Scripture",
-      verseText !== "" ? verseText : (lastError !== "" ? lastError : "Still loading today’s verse…")
-    ])
-  }
-
-  function announceNext() {
-    var hour = hourIsNow ? currentHour : nextHour
-    if (!hour) return
-    Quickshell.execDetached([
-      omarchyPath + "/bin/omarchy-notification-send",
-      "--app-name", "Liturgy of the Hours",
-      "-u", "low",
-      "-g", "☩",
-      "--image", iconPath,
-      hourIsNow ? (hour.name + " · now") : (hour.name + " " + Model.formatUntil(schedule.nowMinutes, hour.minutes, hour.tomorrow)),
-      hour.hymn || hour.invitatory
+      verseText !== "" ? verseText : (lastError !== "" ? lastError : "Today’s Scripture is not ready yet.")
     ])
   }
 
@@ -194,47 +175,24 @@ Item {
     onTriggered: root.checkHours()
   }
 
-  Timer {
-    interval: 3600000
-    running: true
-    repeat: true
-    onTriggered: root.refreshIfStale()
-  }
-
   Process {
     id: ensureDir
     command: ["mkdir", "-p", root.stateDir]
     onExited: function(code) {
       if (code !== 0) { root.lastError = "Couldn’t create the hours state directory."; return }
+      versesFile.reload()
       cacheFile.reload()
     }
   }
 
-  Process {
-    id: bibleProc
-    property string requestedReference: ""
-    property string requestedTranslation: ""
-    property string requestedDate: ""
-    stdout: StdioCollector { id: bibleOut; waitForEnd: true; onStreamFinished: root.fetchOutput = text }
-    onExited: function(code) {
-      root.loading = false
-      if (code !== 0) {
-        root.lastError = "Couldn’t reach bible-api.com"
-        Qt.callLater(root.refreshIfStale)
-        return
-      }
-      var value = Model.parseBible(bibleOut.text || root.fetchOutput, bibleProc.requestedReference, bibleProc.requestedTranslation)
-      if (value && value.text !== "") {
-        root.verseReference = value.reference
-        root.verseText = value.text
-        root.verseTranslation = value.translation
-        root.cachedDate = bibleProc.requestedDate
-        root.cachedTranslation = bibleProc.requestedTranslation
-        root.lastError = ""
-        root.saveCache()
-      } else root.lastError = "Couldn’t parse the Scripture response."
-      Qt.callLater(root.refreshIfStale)
+  property FileView versesFile: FileView {
+    path: root.versesPath
+    printErrors: false
+    onLoaded: {
+      root.catalog = root.parse(text(), { verses: [] })
+      if (root.loaded) root.refreshIfStale()
     }
+    onLoadFailed: root.lastError = "Couldn’t load the bundled BSB catalogue."
   }
 
   property FileView cacheFile: FileView {

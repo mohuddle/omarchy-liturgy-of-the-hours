@@ -82,18 +82,8 @@ var HOURS = [
   }
 ]
 
-var TRANSLATIONS = [
-  { code: "web", name: "World English Bible" },
-  { code: "kjv", name: "King James Version" },
-  { code: "asv", name: "American Standard Version" },
-  { code: "bbe", name: "Bible in Basic English" },
-  { code: "webbe", name: "World English Bible (British)" },
-  { code: "oeb-us", name: "Open English Bible (US)" },
-  { code: "clementine", name: "Clementine Vulgate (Latin)" }
-]
-
-// Curated daily Scripture. bible-api.com has no dedicated verse-of-the-day
-// endpoint, so the plugin picks a reference itself and fetches the text.
+// Curated daily Scripture. Texts are the Berean Standard Bible (CC0),
+// bundled in data/verses.json so the panel never needs a translation picker.
 var VERSES = [
   "Genesis 1:1",
   "Genesis 1:27",
@@ -313,36 +303,45 @@ function cleanVerseText(raw) {
   return String(raw || "").replace(/\s+/g, " ").trim()
 }
 
-function translationCodes() {
-  return TRANSLATIONS.map(function(item) { return item.code })
-}
-
-function translationName(code) {
-  var wanted = String(code || "").toLowerCase()
-  for (var i = 0; i < TRANSLATIONS.length; i++) {
-    if (TRANSLATIONS[i].code === wanted) return TRANSLATIONS[i].name
+function fileUrlToPath(url) {
+  var s = String(url || "")
+  if (s.indexOf("file://") === 0) {
+    s = s.substring(7)
+    if (s.charAt(0) !== "/") s = "/" + s
+    try { s = decodeURIComponent(s) } catch (e) {}
   }
-  return wanted || "World English Bible"
+  return s
 }
 
-function bibleUrl(reference, translation) {
-  var ref = String(reference || "").trim().replace(/ /g, "+")
-  var t = choice(translation, translationCodes(), "web")
-  return "https://bible-api.com/" + ref + "?translation=" + encodeURIComponent(t)
+function catalogVerses(catalog) {
+  if (Array.isArray(catalog)) return catalog
+  if (catalog && Array.isArray(catalog.verses)) return catalog.verses
+  return []
 }
 
-function parseBible(raw, reference, translation) {
-  try {
-    var value = JSON.parse(String(raw || ""))
-    if (!value || (value.text === undefined && !Array.isArray(value.verses))) return null
-    if (value.error) return null
-    return {
-      reference: String(value.reference || reference || ""),
-      text: cleanVerseText(value.text),
-      translation: String(value.translation_name || translationName(translation)),
-      translationId: String(value.translation_id || translation || "web")
-    }
-  } catch (e) { return null }
+function verseFromCatalog(catalog, position) {
+  var verses = catalogVerses(catalog)
+  if (verses.length === 0) return null
+  var idx = Math.max(0, Number(position) || 0) % verses.length
+  var item = verses[idx] || {}
+  var text = cleanVerseText(item.text)
+  if (text === "") return null
+  return {
+    reference: String(item.reference || verseForPosition(idx)),
+    text: text,
+    translation: "Berean Standard Bible",
+    translationId: "bsb"
+  }
+}
+
+function featuredHour(schedule) {
+  if (!schedule) return null
+  return schedule.current || schedule.next || null
+}
+
+function heroMeta(hour) {
+  if (!hour) return ""
+  return hour.shortName + " · " + hour.traditional + " · " + hour.time
 }
 
 function hourById(id) {
@@ -457,7 +456,6 @@ function verseForPosition(position) {
 if (typeof module !== "undefined") {
   module.exports = {
     HOURS: HOURS,
-    TRANSLATIONS: TRANSLATIONS,
     VERSES: VERSES,
     pad2: pad2,
     isoDate: isoDate,
@@ -470,10 +468,11 @@ if (typeof module !== "undefined") {
     boolSetting: boolSetting,
     nextPosition: nextPosition,
     cleanVerseText: cleanVerseText,
-    translationCodes: translationCodes,
-    translationName: translationName,
-    bibleUrl: bibleUrl,
-    parseBible: parseBible,
+    fileUrlToPath: fileUrlToPath,
+    catalogVerses: catalogVerses,
+    verseFromCatalog: verseFromCatalog,
+    featuredHour: featuredHour,
+    heroMeta: heroMeta,
     hourById: hourById,
     resolvedHours: resolvedHours,
     enabledHours: enabledHours,

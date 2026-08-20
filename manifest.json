@@ -2,21 +2,20 @@
   "schemaVersion": 1,
   "id": "io.github.mohuddle.liturgy-of-the-hours",
   "name": "Liturgy of the Hours",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "mohuddle",
-  "description": "Daily Scripture and reminders for Morning and Evening Prayer, plus the little hours of Prime, Terce, Sext, and None.",
+  "description": "Jerusalem Cross bar widget with the canonical hours and a daily BSB Scripture.",
   "license": "MIT",
   "tags": ["prayer", "bible", "liturgy", "hours", "reminder"],
   "kinds": ["bar-widget"],
   "entryPoints": { "barWidget": "BarWidget.qml" },
   "barWidget": {
     "displayName": "Liturgy of the Hours",
-    "description": "Jerusalem Cross with daily Scripture and canonical-hour reminders",
-    "category": "Productivity",
+    "description": "Canonical hours with the current hour highlighted and today’s BSB verse",
+    "category": "Widgets",
     "allowMultiple": false,
     "defaultSection": "right",
     "defaults": {
-      "translation": "web",
       "verseSequence": "sequential",
       "notificationsEnabled": true,
       "morningEnabled": true,
@@ -33,7 +32,6 @@
       "eveningTime": "18:00"
     },
     "schema": [
-      { "key": "translation", "type": "string", "label": "Bible translation", "defaultValue": "web" },
       { "key": "verseSequence", "type": "string", "label": "Scripture order: sequential or random", "defaultValue": "sequential" },
       { "key": "notificationsEnabled", "type": "boolean", "label": "Desktop reminders at each hour", "defaultValue": true },
       { "key": "morningEnabled", "type": "boolean", "label": "Morning Prayer (Lauds)", "defaultValue": true },
