@@ -437,6 +437,10 @@ function notificationTitle(hour) {
   return hour.name + " — " + hour.traditional
 }
 
+function hourNotificationTitles() {
+  return HOURS.map(function(hour) { return notificationTitle(hour) })
+}
+
 function notificationBody(hour, verseReference) {
   var lines = []
   if (hour) {
@@ -480,6 +484,7 @@ if (typeof module !== "undefined") {
     isCurrentWindow: isCurrentWindow,
     dueNotifications: dueNotifications,
     notificationTitle: notificationTitle,
+    hourNotificationTitles: hourNotificationTitles,
     notificationBody: notificationBody,
     verseForPosition: verseForPosition
   }

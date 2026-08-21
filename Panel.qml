@@ -27,7 +27,10 @@ Panel {
 
   function open() {
     controller.show()
-    if (service) service.load()
+    if (service) {
+      service.dismissHourNotifications()
+      service.load()
+    }
     Qt.callLater(function() {
       if (root.opened) setCenterHoverRevealSuppressed(true)
     })
@@ -288,7 +291,7 @@ Panel {
           Text {
             width: parent.width
             textFormat: Text.PlainText
-            text: "Scripture is the Berean Standard Bible. Prime defaults to 07:00 so it does not collide with Morning Prayer at 06:00."
+            text: "Hour reminders stay on screen until you click the toast or the Jerusalem Cross. A church bell rings when they appear. Scripture is the Berean Standard Bible. Prime defaults to 07:00 so it does not collide with Morning Prayer at 06:00."
             color: root.muted
             font.family: root.fontFamily
             font.pixelSize: Style.font.caption

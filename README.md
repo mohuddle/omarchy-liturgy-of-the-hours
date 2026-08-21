@@ -11,7 +11,7 @@ Plugin id: `io.github.mohuddle.liturgy-of-the-hours`
 - Shows a theme-colored Jerusalem Cross in the Omarchy bar (accent-colored while an hour is current).
 - Lists Lauds, Prime, Terce, Sext, None, and Vespers, highlighting the current hour.
 - Rotates a curated BSB passage once per local calendar day.
-- Sends one Omarchy notification at each enabled hour (with a five-minute grace window).
+- Sends one Omarchy notification at each enabled hour (with a five-minute grace window). Hour toasts stay on screen until you click them or the Jerusalem Cross, and a church bell rings when they appear.
 - Remembers reminder state at `~/.local/state/omarchy/settings/liturgy-of-the-hours.json`.
 
 The plugin does not overwrite `~/.config/omarchy/shell.json` except to add or update its own bar-widget entry when you enable it or change its settings. No sudo or pkexec is required. There is no translation picker; Scripture is always BSB.
@@ -47,7 +47,7 @@ omarchy bar move io.github.mohuddle.liturgy-of-the-hours --section center
 
 ## Usage
 
-- **Left click:** open or close the panel.
+- **Left click:** open or close the panel, and dismiss any hour reminder still on screen.
 - **Middle click:** reload today’s Scripture from the bundled catalogue.
 - **Right click:** send today’s Scripture as a desktop notification.
 - With the popup open: `Esc` closes it, `r` reloads Scripture, `Tab`/`Shift+Tab` switches to the neighboring bar panel.

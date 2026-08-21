@@ -67,6 +67,12 @@ assert.equal(model.dueNotifications(new Date(2026, 7, 19, 10, 0), {}, {}, 5).len
 assert.equal(model.notificationTitle(model.hourById("none")), "None — Ninth Hour")
 assert.ok(model.notificationBody(model.hourById("morning"), "John 3:16").includes("Today’s Scripture: John 3:16"))
 
+const hourTitles = model.hourNotificationTitles()
+assert.equal(hourTitles.length, 6)
+assert.equal(new Set(hourTitles).size, 6)
+assert.ok(hourTitles.includes("Terce — Third Hour"))
+assert.ok(fs.existsSync(path.join(__dirname, "../data/church-bell.ogg")), "bundled church bell")
+
 assert.equal(model.verseForPosition(0), model.VERSES[0])
 assert.equal(model.verseForPosition(model.VERSES.length), model.VERSES[0])
 

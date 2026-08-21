@@ -25,6 +25,7 @@ BarWidget {
   readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
 
   function open() {
+    office.dismissHourNotifications()
     office.load()
     if (panelLoader.item) panelLoader.item.open()
   }
@@ -97,6 +98,7 @@ BarWidget {
     }
 
     onPressed: function(b) {
+      office.dismissHourNotifications()
       if (b === Qt.MiddleButton) root.refresh()
       else if (b === Qt.RightButton) office.notifyVerse()
       else root.togglePanel()

@@ -12,6 +12,12 @@ See https://berean.bible/terms.htm
 The curated passages in `data/verses.json` were taken from a public BSB verse
 dump for offline use in this plugin. No network request is made at runtime.
 
+## Church bell
+
+`data/church-bell.ogg` is an original synthesized chapel-bell sample, not a
+recording of a named instrument or performance. It is MIT licensed with the
+plugin code.
+
 ## Plugin code
 
 The QML, JavaScript, and remaining files in this repository (other than the

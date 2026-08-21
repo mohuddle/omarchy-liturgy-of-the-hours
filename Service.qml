@@ -14,6 +14,7 @@ Item {
   readonly property string cachePath: stateDir + "liturgy-of-the-hours.json"
   readonly property string iconPath: Qt.resolvedUrl("icon.png").toString().replace(/^file:\/\//, "")
   readonly property string versesPath: Model.fileUrlToPath(Qt.resolvedUrl("data/verses.json"))
+  readonly property string bellPath: Model.fileUrlToPath(Qt.resolvedUrl("data/church-bell.ogg"))
   readonly property bool notificationsEnabled: Model.boolSetting(setting("notificationsEnabled", true), true)
   readonly property var schedule: Model.scheduleState(clock.date, settings)
   readonly property var currentHour: schedule.current
@@ -129,18 +130,39 @@ Item {
 
   function selectHour(id) { selectedHourId = id || "" }
 
+  function playBell() {
+    if (bellPath === "") return
+    Quickshell.execDetached([
+      "sh", "-c",
+      'if command -v pw-play >/dev/null 2>&1; then pw-play --media-role Notification --volume 0.65 "$1"; elif command -v paplay >/dev/null 2>&1; then paplay "$1"; fi',
+      "loth-bell",
+      bellPath
+    ])
+  }
+
+  function dismissHourNotifications() {
+    var titles = Model.hourNotificationTitles()
+    for (var i = 0; i < titles.length; i++) {
+      Quickshell.execDetached([
+        omarchyPath + "/bin/omarchy-notification-dismiss",
+        titles[i]
+      ])
+    }
+  }
+
   function notifyHour(hour) {
     if (!hour) return
     var args = [
       omarchyPath + "/bin/omarchy-notification-send",
       "--app-name", "Liturgy of the Hours",
-      "-u", "normal",
+      "-u", "critical",
       "-g", "☩",
       "--exec", "omarchy-shell shell summon io.github.mohuddle.liturgy-of-the-hours '{}'"
     ]
     if (iconPath !== "") { args.push("--image"); args.push(iconPath) }
     args.push(Model.notificationTitle(hour))
     args.push(Model.notificationBody(hour, verseReference))
+    playBell()
     Quickshell.execDetached(args)
     var next = ({})
     for (var key in lastNotified) next[key] = lastNotified[key]
