@@ -12,6 +12,14 @@ See https://berean.bible/terms.htm
 The curated passages in `data/verses.json` were taken from a public BSB verse
 dump for offline use in this plugin. No network request is made at runtime.
 
+## The Office
+
+`data/office.json` holds little-hour chapters in the Berean Standard Bible (CC0),
+short responds in traditional public-domain English, and collects and memorials
+from the 1662 and 1928 Books of Common Prayer (public domain). Liturgical day
+names follow the same 1662/1928/REC calendar used by the companion Daily Office
+app.
+
 ## Church bell
 
 `data/church-bell.ogg` is an original synthesized chapel-bell sample, not a

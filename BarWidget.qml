@@ -25,7 +25,7 @@ BarWidget {
   readonly property bool popoutSwitchClosing: panelLoader.item ? panelLoader.item.popoutSwitchClosing === true : false
 
   function open() {
-    office.dismissHourNotifications()
+    office.dismissPluginNotifications()
     office.load()
     if (panelLoader.item) panelLoader.item.open()
   }
@@ -39,6 +39,15 @@ BarWidget {
   }
 
   function refresh() { office.load(true) }
+
+  function openOffice() {
+    office.prepareOffice()
+    if (panelLoader.item && typeof panelLoader.item.showOffice === "function") {
+      panelLoader.item.showOffice()
+    } else {
+      root.open()
+    }
+  }
 
   function closeForPopoutSwitch() {
     if (panelLoader.item) panelLoader.item.closeForPopoutSwitch()
@@ -81,6 +90,7 @@ BarWidget {
     function toggle(): void { root.togglePanel() }
     function refresh(): string { office.load(true); return "ok" }
     function status(): string { return office.statusText }
+    function office(): void { root.openOffice() }
   }
 
   BarIconButton {
@@ -98,7 +108,7 @@ BarWidget {
     }
 
     onPressed: function(b) {
-      office.dismissHourNotifications()
+      office.dismissPluginNotifications()
       if (b === Qt.MiddleButton) root.refresh()
       else if (b === Qt.RightButton) office.notifyVerse()
       else root.togglePanel()

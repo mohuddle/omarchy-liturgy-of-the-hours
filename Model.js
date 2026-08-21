@@ -457,6 +457,378 @@ function verseForPosition(position) {
   return VERSES[idx]
 }
 
+var ORDINALS = [
+  "", "First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh",
+  "Eighth", "Ninth", "Tenth", "Eleventh", "Twelfth", "Thirteenth",
+  "Fourteenth", "Fifteenth", "Sixteenth", "Seventeenth", "Eighteenth",
+  "Nineteenth", "Twentieth", "Twenty-first", "Twenty-second",
+  "Twenty-third", "Twenty-fourth", "Twenty-fifth", "Twenty-sixth",
+  "Twenty-seventh"
+]
+
+var WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
+var RED_LETTER = {
+  "1-1": "the Circumcision of Christ",
+  "1-6": "the Epiphany of our Lord",
+  "1-25": "the Conversion of Saint Paul",
+  "2-2": "the Presentation of Christ in the Temple",
+  "2-24": "Saint Matthias the Apostle",
+  "3-25": "the Annunciation of the Blessed Virgin Mary",
+  "4-25": "Saint Mark the Evangelist",
+  "6-11": "Saint Barnabas the Apostle",
+  "6-24": "the Nativity of Saint John the Baptist",
+  "6-29": "Saint Peter the Apostle",
+  "7-25": "Saint James the Apostle",
+  "8-6": "the Transfiguration of our Lord",
+  "8-15": "the feast of Saint Mary the Virgin",
+  "8-24": "Saint Bartholomew the Apostle",
+  "9-21": "Saint Matthew the Apostle",
+  "9-29": "Saint Michael and All Angels",
+  "10-18": "Saint Luke the Evangelist",
+  "10-28": "Saint Simon and Saint Jude, Apostles",
+  "11-1": "All Saints",
+  "11-30": "Saint Andrew the Apostle",
+  "12-21": "Saint Thomas the Apostle",
+  "12-25": "the Nativity of our Lord",
+  "12-26": "Saint Stephen, Deacon and Martyr",
+  "12-27": "Saint John the Apostle and Evangelist",
+  "12-28": "the Holy Innocents"
+}
+
+var YEAR_NOTES = {
+  2026: { easter: "2026-04-05", ash: "2026-02-18", palm: "2026-03-29", ascension: "2026-05-14", pentecost: "2026-05-24", trinity: "2026-05-31", advent: "2026-11-29" }
+}
+
+function dateAt(year, month, day) {
+  return new Date(year, month - 1, day)
+}
+
+function addDays(d, n) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)
+}
+
+function startOfDay(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
+function daysBetween(a, b) {
+  return Math.round((startOfDay(b) - startOfDay(a)) / 86400000)
+}
+
+function sundayOnOrBefore(d) {
+  return addDays(d, -d.getDay())
+}
+
+function nthSundayAfter(anchor, d) {
+  return Math.floor(daysBetween(anchor, sundayOnOrBefore(d)) / 7)
+}
+
+function parseISODate(iso) {
+  var parts = String(iso || "").split("-")
+  return dateAt(Number(parts[0]), Number(parts[1]), Number(parts[2]))
+}
+
+function easterDate(year) {
+  var a = year % 19
+  var b = Math.floor(year / 100)
+  var c = year % 100
+  var d = Math.floor(b / 4)
+  var e = b % 4
+  var f = Math.floor((b + 8) / 25)
+  var g = Math.floor((b - f + 1) / 3)
+  var h = (19 * a + b - d - g + 15) % 30
+  var i = Math.floor(c / 4)
+  var k = c % 4
+  var l = (32 + 2 * e + 2 * i - h - k) % 7
+  var m = Math.floor((a + 11 * h + 22 * l) / 451)
+  var monthDay = h + l - 7 * m + 114
+  var month = Math.floor(monthDay / 31)
+  var day = (monthDay % 31) + 1
+  return dateAt(year, month, day)
+}
+
+function adventSunday(year) {
+  var d = dateAt(year, 11, 27)
+  for (var i = 0; i < 7; i++) {
+    var candidate = addDays(d, i)
+    if (candidate.getDay() === 0) return candidate
+  }
+  return d
+}
+
+function yearAnchors(year) {
+  var notes = YEAR_NOTES[year]
+  if (notes) {
+    return {
+      easter: parseISODate(notes.easter),
+      ash: parseISODate(notes.ash),
+      palm: parseISODate(notes.palm),
+      ascension: parseISODate(notes.ascension),
+      pentecost: parseISODate(notes.pentecost),
+      trinity: parseISODate(notes.trinity),
+      advent: parseISODate(notes.advent)
+    }
+  }
+  var e = easterDate(year)
+  return {
+    easter: e,
+    ash: addDays(e, -46),
+    palm: addDays(e, -7),
+    ascension: addDays(e, 39),
+    pentecost: addDays(e, 49),
+    trinity: addDays(e, 56),
+    advent: adventSunday(year)
+  }
+}
+
+function weekdayName(d) {
+  return WEEKDAYS[(d.getDay() + 6) % 7]
+}
+
+function liturgicalDay(d) {
+  d = startOfDay(d)
+  var year = d.getFullYear()
+  var notes = yearAnchors(year)
+  var easter = notes.easter
+  var ash = notes.ash
+  var palm = notes.palm
+  var ascension = notes.ascension
+  var pentecost = notes.pentecost
+  var trinity = notes.trinity
+  var advent = notes.advent
+  var christmas = dateAt(year, 12, 25)
+  var epiphany = dateAt(year, 1, 6)
+  var feast = RED_LETTER[(d.getMonth() + 1) + "-" + d.getDate()] || null
+  var weekday = weekdayName(d)
+  var season = "the Christian year"
+  var seasonKey = "trinity"
+  var weekNumber = null
+  function cmp(a, b) { return daysBetween(b, a) }
+
+  if (cmp(d, christmas) === 0) {
+    season = "Christmas Day"
+    seasonKey = "christmas"
+  } else if (cmp(d, dateAt(year, 12, 24)) === 0) {
+    season = "Christmas Eve"
+    seasonKey = "christmas"
+  } else if (cmp(d, dateAt(year, 12, 26)) >= 0 || cmp(d, dateAt(year, 1, 5)) <= 0) {
+    season = "Christmastide"
+    seasonKey = "christmas"
+  } else if (cmp(d, epiphany) === 0) {
+    season = "the Epiphany of our Lord"
+    seasonKey = "epiphany"
+    weekNumber = 0
+  } else if (cmp(d, epiphany) > 0 && cmp(d, ash) < 0) {
+    var firstEpiphany = addDays(epiphany, (7 - epiphany.getDay()) % 7)
+    if (cmp(firstEpiphany, epiphany) <= 0) firstEpiphany = addDays(firstEpiphany, 7)
+    var nEp = nthSundayAfter(addDays(firstEpiphany, -7), d)
+    seasonKey = "epiphany"
+    weekNumber = Math.max(nEp, 1)
+    season = d.getDay() === 0
+      ? "the " + ORDINALS[nEp] + " Sunday after Epiphany"
+      : "the week following the " + ORDINALS[Math.max(nEp, 1)] + " Sunday after Epiphany"
+  } else if (cmp(d, ash) === 0) {
+    season = "Ash Wednesday"
+    seasonKey = "lent"
+    weekNumber = 0
+  } else if (cmp(d, ash) > 0 && cmp(d, palm) < 0) {
+    var firstLent = addDays(ash, (7 - ash.getDay()) % 7)
+    if (cmp(firstLent, ash) === 0) firstLent = addDays(firstLent, 7)
+    seasonKey = "lent"
+    if (cmp(d, firstLent) < 0) {
+      season = "the week of Ash Wednesday"
+      weekNumber = 0
+    } else if (d.getDay() === 0) {
+      weekNumber = Math.floor(daysBetween(firstLent, d) / 7) + 1
+      season = "the " + ORDINALS[weekNumber] + " Sunday in Lent"
+    } else {
+      weekNumber = Math.max(nthSundayAfter(firstLent, d), 1)
+      season = "the week following the " + ORDINALS[weekNumber] + " Sunday in Lent"
+    }
+  } else if (cmp(d, palm) === 0) {
+    season = "Palm Sunday"
+    seasonKey = "holyweek"
+  } else if (cmp(d, palm) > 0 && cmp(d, easter) < 0) {
+    season = "Holy Week"
+    seasonKey = "holyweek"
+  } else if (cmp(d, easter) === 0) {
+    season = "Easter Day"
+    seasonKey = "easter"
+    weekNumber = 0
+  } else if (cmp(d, easter) > 0 && cmp(d, ascension) < 0) {
+    var nEaster = nthSundayAfter(easter, d)
+    seasonKey = "easter"
+    weekNumber = nEaster
+    if (d.getDay() === 0) season = "the " + ORDINALS[nEaster] + " Sunday after Easter"
+    else if (nEaster) season = "the week following the " + ORDINALS[Math.max(nEaster, 1)] + " Sunday after Easter"
+    else season = "Easter Week"
+  } else if (cmp(d, ascension) === 0) {
+    season = "Ascension Day"
+    seasonKey = "ascension"
+  } else if (cmp(d, ascension) > 0 && cmp(d, pentecost) < 0) {
+    season = "the week following Ascension Day"
+    seasonKey = "ascension"
+  } else if (cmp(d, pentecost) === 0) {
+    season = "Whitsunday, the Feast of Pentecost"
+    seasonKey = "pentecost"
+  } else if (cmp(d, pentecost) > 0 && cmp(d, trinity) < 0) {
+    season = "the week following Whitsunday"
+    seasonKey = "pentecost"
+  } else if (cmp(d, trinity) === 0) {
+    season = "Trinity Sunday"
+    seasonKey = "trinity"
+    weekNumber = 0
+  } else if (cmp(d, trinity) > 0 && cmp(d, advent) < 0) {
+    var nTrin = nthSundayAfter(trinity, d)
+    seasonKey = "trinity"
+    weekNumber = nTrin
+    season = d.getDay() === 0
+      ? "the " + ORDINALS[nTrin] + " Sunday after Trinity"
+      : "the week following the " + ORDINALS[Math.max(nTrin, 1)] + " Sunday after Trinity"
+  } else if (cmp(d, advent) >= 0 && cmp(d, christmas) < 0) {
+    var nAdv = Math.floor(daysBetween(advent, d) / 7) + 1
+    seasonKey = "advent"
+    weekNumber = nAdv
+    season = d.getDay() === 0
+      ? "the " + ORDINALS[nAdv] + " Sunday in Advent"
+      : "the week following the " + ORDINALS[nAdv] + " Sunday in Advent"
+  }
+
+  var spoken
+  if (season === "Holy Week" || season === "Easter Week" || season === "Christmastide" || season.indexOf("the week") === 0) {
+    spoken = weekday + " in " + season
+  } else if (season.indexOf("Day") >= 0 || season.indexOf("Ash") === 0 || season.indexOf("Whitsunday") === 0 || season.indexOf("Eve") >= 0) {
+    spoken = (d.getDay() === 0 || season.indexOf("Day") >= 0) ? season : weekday + ", " + season
+  } else if (d.getDay() === 0) {
+    spoken = season
+  } else {
+    spoken = weekday + " in " + season
+  }
+
+  return {
+    date: isoDate(d),
+    weekday: weekday,
+    season: season,
+    seasonKey: seasonKey,
+    weekNumber: weekNumber,
+    feast: feast,
+    spoken: spoken
+  }
+}
+
+function officeNotificationTitle() {
+  return "The Office"
+}
+
+function pluginNotificationTitles() {
+  return hourNotificationTitles().concat([officeNotificationTitle()])
+}
+
+function lookupHourEntry(maps, seasonKey, hourId) {
+  if (!maps) return null
+  var season = maps[seasonKey] || maps.trinity || {}
+  return season[hourId] || season.default || (maps.trinity && (maps.trinity[hourId] || maps.trinity.default)) || null
+}
+
+function collectMatches(collect, day, hourId) {
+  if (!collect) return false
+  if (collect.hours && collect.hours.length && collect.hours.indexOf(hourId) < 0) return false
+  if (collect.weekdays && collect.weekdays.length && collect.weekdays.indexOf(day.weekday) < 0) return false
+  if (collect.seasons && collect.seasons.length && collect.seasons.indexOf(day.seasonKey) < 0) return false
+  if (collect.week !== undefined && collect.week !== null && collect.week !== day.weekNumber) return false
+  return true
+}
+
+function pickCollect(book, day, hour, salt) {
+  var pool = []
+  var list = book && Array.isArray(book.collects) ? book.collects : []
+  for (var i = 0; i < list.length; i++) {
+    if (collectMatches(list[i], day, hour && hour.id)) pool.push(list[i])
+  }
+  if (hour && hour.prayer) {
+    pool.push({ id: hour.id + "-hour", title: hour.name, text: hour.prayer })
+  }
+  if (pool.length === 0) return null
+  return pool[nextPosition(-1, pool.length, "random", salt)]
+}
+
+function pickMemorial(book, day) {
+  var list = book && Array.isArray(book.memorials) ? book.memorials : []
+  var fallback = null
+  for (var i = 0; i < list.length; i++) {
+    var item = list[i]
+    if (item.weekdays && item.weekdays.indexOf(day.weekday) >= 0) return item
+    if (!item.weekdays || item.weekdays.length === 0) fallback = item
+  }
+  return fallback
+}
+
+function buildOffice(now, hour, book, salt) {
+  var day = liturgicalDay(now)
+  hour = hour || hourById("morning")
+  var chapter = lookupHourEntry(book && book.chapters, day.seasonKey, hour.id)
+  var respond = lookupHourEntry(book && book.responds, day.seasonKey, hour.id)
+  var collect = pickCollect(book, day, hour, String(salt || day.date) + (hour.id || "") + "collect")
+  var memorial = pickMemorial(book, day)
+  var heading = day.spoken
+  if (day.feast) heading += ", " + day.feast
+  var sections = []
+  if (chapter) {
+    sections.push({
+      label: "The Chapter",
+      body: (chapter.reference ? chapter.reference + "\n" : "") + (chapter.text || "")
+    })
+  }
+  if (respond) {
+    sections.push({
+      label: "The Short Respond",
+      body: [respond.respond, respond.verse, "Glory be to the Father, and to the Son, and to the Holy Spirit."].filter(Boolean).join("\n")
+    })
+  }
+  if (collect) {
+    sections.push({
+      label: "Collect",
+      body: collect.text || ""
+    })
+  }
+  if (memorial) {
+    sections.push({
+      label: "Memorial Collect",
+      body: (memorial.title ? memorial.title + "\n" : "") + (memorial.text || "")
+    })
+  }
+  return {
+    spoken: day.spoken,
+    heading: heading,
+    feast: day.feast,
+    seasonKey: day.seasonKey,
+    weekNumber: day.weekNumber,
+    weekday: day.weekday,
+    hourId: hour.id,
+    hourName: hour.name,
+    hourShortName: hour.shortName,
+    chapter: chapter,
+    respond: respond,
+    collect: collect,
+    memorial: memorial,
+    sections: sections
+  }
+}
+
+function officeNotificationBody(office) {
+  if (!office) return "The Office is not ready yet."
+  var lines = [office.heading]
+  if (office.hourName) lines.push(office.hourName)
+  for (var i = 0; i < (office.sections || []).length; i++) {
+    var section = office.sections[i]
+    lines.push("")
+    lines.push(section.label.toUpperCase())
+    lines.push(section.body)
+  }
+  return lines.join("\n")
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     HOURS: HOURS,
@@ -485,7 +857,13 @@ if (typeof module !== "undefined") {
     dueNotifications: dueNotifications,
     notificationTitle: notificationTitle,
     hourNotificationTitles: hourNotificationTitles,
+    pluginNotificationTitles: pluginNotificationTitles,
     notificationBody: notificationBody,
-    verseForPosition: verseForPosition
+    verseForPosition: verseForPosition,
+    easterDate: easterDate,
+    liturgicalDay: liturgicalDay,
+    officeNotificationTitle: officeNotificationTitle,
+    buildOffice: buildOffice,
+    officeNotificationBody: officeNotificationBody
   }
 }

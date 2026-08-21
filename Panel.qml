@@ -16,6 +16,7 @@ Panel {
   property var hostWidget: null
   property var service: null
   property bool showingSettings: false
+  property bool showingOffice: false
   readonly property var barIdentity: hostWidget || root
   readonly property color foreground: bar ? bar.foreground : Color.foreground
   readonly property color muted: Color.muted
@@ -37,7 +38,29 @@ Panel {
   }
   function close() {
     setCenterHoverRevealSuppressed(false)
+    showingOffice = false
     controller.hide()
+  }
+  function showOffice() {
+    showingSettings = false
+    showingOffice = true
+    if (service) {
+      service.dismissPluginNotifications()
+      service.prepareOffice()
+    }
+    open()
+  }
+  function toggleOffice() {
+    if (showingOffice) {
+      showingOffice = false
+      return
+    }
+    showingSettings = false
+    showingOffice = true
+    if (service) {
+      service.dismissPluginNotifications()
+      service.prepareOffice()
+    }
   }
   function toggle() { if (opened) close(); else open() }
   function switchPanel(direction) {
@@ -90,7 +113,7 @@ Panel {
     centerOnBar: false
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(520))
-    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(420))
+    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(root.showingOffice ? 560 : 420))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -106,46 +129,45 @@ Panel {
 
         Item {
           width: parent.width
-          height: headerRow.implicitHeight
+          height: Math.max(cross.height, titleColumn.implicitHeight, gear.height)
 
-          Row {
-            id: headerRow
+          JerusalemCross {
+            id: cross
+            size: Style.space(72)
+            foreground: root.accent
             anchors.left: parent.left
-            anchors.right: gear.left
+            anchors.verticalCenter: parent.verticalCenter
+          }
+
+          Column {
+            id: titleColumn
+            anchors.left: cross.right
+            anchors.leftMargin: Style.space(16)
+            anchors.right: bell.left
             anchors.rightMargin: Style.space(8)
-            spacing: Style.space(16)
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: Style.space(4)
 
-            JerusalemCross {
-              id: cross
-              size: Style.space(72)
-              foreground: root.accent
-              anchors.verticalCenter: parent.verticalCenter
+            Text {
+              width: parent.width
+              textFormat: Text.PlainText
+              text: "Liturgy of the Hours"
+              color: root.foreground
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.title
+              font.bold: true
+              wrapMode: Text.WordWrap
             }
-
-            Column {
-              width: Math.max(0, headerRow.width - cross.width - headerRow.spacing)
-              spacing: Style.space(4)
-              anchors.verticalCenter: parent.verticalCenter
-
-              Text {
-                width: parent.width
-                textFormat: Text.PlainText
-                text: "Liturgy of the Hours"
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.title
-                font.bold: true
-                elide: Text.ElideRight
-              }
-              Text {
-                width: parent.width
-                textFormat: Text.PlainText
-                text: root.showingSettings ? "Hour times and reminders" : (root.service && root.service.heroMeta ? root.service.heroMeta : "")
-                color: root.accent
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.body
-                elide: Text.ElideRight
-              }
+            Text {
+              width: parent.width
+              textFormat: Text.PlainText
+              text: root.showingSettings ? "Hour times and reminders"
+                : root.showingOffice ? (root.service && root.service.office && root.service.office.heading ? root.service.office.heading : "The Office")
+                : (root.service && root.service.heroMeta ? root.service.heroMeta : "")
+              color: root.accent
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.body
+              wrapMode: Text.WordWrap
             }
           }
 
@@ -154,20 +176,44 @@ Panel {
             anchors.right: parent.right
             anchors.top: parent.top
             width: Style.space(32)
+            height: Style.space(32)
             implicitHeight: Style.space(32)
             horizontalPadding: 0
             verticalPadding: 0
+            fontFamily: root.fontFamily
             iconText: ""
             selected: root.showingSettings
             bordered: true
             foreground: root.foreground
             tooltipText: "Settings"
-            onClicked: root.showingSettings = !root.showingSettings
+            onClicked: {
+              root.showingOffice = false
+              root.showingSettings = !root.showingSettings
+            }
+          }
+
+          Button {
+            id: bell
+            anchors.right: gear.left
+            anchors.rightMargin: Style.space(8)
+            anchors.top: parent.top
+            width: Style.space(32)
+            height: Style.space(32)
+            implicitHeight: Style.space(32)
+            horizontalPadding: 0
+            verticalPadding: 0
+            fontFamily: root.fontFamily
+            iconText: "󰂚"
+            selected: root.showingOffice
+            bordered: true
+            foreground: root.foreground
+            tooltipText: "The Office"
+            onClicked: root.toggleOffice()
           }
         }
 
         Row {
-          visible: !root.showingSettings
+          visible: !root.showingSettings && !root.showingOffice
           width: parent.width
           spacing: Style.space(28)
 
@@ -244,6 +290,61 @@ Panel {
               color: root.muted
               font.family: root.fontFamily
               font.pixelSize: Style.font.caption
+            }
+          }
+        }
+
+        Column {
+          id: officeColumn
+          visible: root.showingOffice && !root.showingSettings
+          width: parent.width
+          spacing: Style.space(12)
+
+          Text {
+            width: parent.width
+            textFormat: Text.PlainText
+            text: root.service && root.service.office ? root.service.office.heading : ""
+            color: root.foreground
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.body
+            wrapMode: Text.WordWrap
+          }
+          Text {
+            width: parent.width
+            textFormat: Text.PlainText
+            text: root.service && root.service.office ? root.service.office.hourName : ""
+            color: root.accent
+            font.family: root.fontFamily
+            font.pixelSize: Style.font.subtitle
+            font.bold: true
+            wrapMode: Text.WordWrap
+          }
+
+          Repeater {
+            model: root.service && root.service.office ? root.service.office.sections : []
+            delegate: Column {
+              required property var modelData
+              width: officeColumn.width
+              spacing: Style.space(4)
+
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                text: modelData.label ? String(modelData.label).toUpperCase() : ""
+                color: root.muted
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.caption
+                font.bold: true
+              }
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                text: modelData.body || ""
+                color: root.foreground
+                font.family: root.fontFamily
+                font.pixelSize: Style.font.body
+                wrapMode: Text.WordWrap
+              }
             }
           }
         }

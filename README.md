@@ -12,6 +12,7 @@ Plugin id: `io.github.mohuddle.liturgy-of-the-hours`
 - Lists Lauds, Prime, Terce, Sext, None, and Vespers, highlighting the current hour.
 - Rotates a curated BSB passage once per local calendar day.
 - Sends one Omarchy notification at each enabled hour (with a five-minute grace window). Hour toasts stay on screen until you click them or the Jerusalem Cross, and a church bell rings when they appear.
+- Bell beside the gear opens a brief office for the current hour: the liturgical day, the chapter, the short respond, a collect for the day and hour, and a memorial collect. That toast replaces the hour reminder and stays until you dismiss it.
 - Remembers reminder state at `~/.local/state/omarchy/settings/liturgy-of-the-hours.json`.
 
 The plugin does not overwrite `~/.config/omarchy/shell.json` except to add or update its own bar-widget entry when you enable it or change its settings. No sudo or pkexec is required. There is no translation picker; Scripture is always BSB.
@@ -31,7 +32,7 @@ Prime is 07:00 by default so it does not collide with Morning Prayer. Every hour
 
 ## Sources and attribution
 
-Daily Scripture is the [Berean Standard Bible](https://berean.bible/terms.htm) (CC0), bundled in `data/verses.json`. Hour prayers are traditional public-domain office texts. No API key and no runtime network request. See [NOTICE.md](NOTICE.md).
+Daily Scripture is the [Berean Standard Bible](https://berean.bible/terms.htm) (CC0), bundled in `data/verses.json`. Office chapters in `data/office.json` are BSB; collects and memorials are 1662/1928 public-domain texts. Liturgical day names follow the traditional 1662/1928/REC calendar. No API key and no runtime network request. See [NOTICE.md](NOTICE.md).
 
 ## Install
 
@@ -52,6 +53,7 @@ omarchy bar move io.github.mohuddle.liturgy-of-the-hours --section center
 - **Right click:** send today’s Scripture as a desktop notification.
 - With the popup open: `Esc` closes it, `r` reloads Scripture, `Tab`/`Shift+Tab` switches to the neighboring bar panel.
 - Gear: hour times, which hours to keep, and reminder on/off.
+- Bell: dismiss the hour reminder and open The Office (also sent as a persistent toast).
 
 ## Dependencies
 

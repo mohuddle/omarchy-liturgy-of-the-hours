@@ -14,6 +14,7 @@ Item {
   readonly property string cachePath: stateDir + "liturgy-of-the-hours.json"
   readonly property string iconPath: Qt.resolvedUrl("icon.png").toString().replace(/^file:\/\//, "")
   readonly property string versesPath: Model.fileUrlToPath(Qt.resolvedUrl("data/verses.json"))
+  readonly property string officePath: Model.fileUrlToPath(Qt.resolvedUrl("data/office.json"))
   readonly property string bellPath: Model.fileUrlToPath(Qt.resolvedUrl("data/church-bell.ogg"))
   readonly property bool notificationsEnabled: Model.boolSetting(setting("notificationsEnabled", true), true)
   readonly property var schedule: Model.scheduleState(clock.date, settings)
@@ -33,6 +34,8 @@ Item {
   property string verseReference: ""
   property string verseText: ""
   property string selectedHourId: ""
+  property var officeBook: ({})
+  property var office: null
   readonly property string verseTranslation: "Berean Standard Bible"
   readonly property int catalogLength: Model.catalogVerses(catalog).length
   readonly property string statusText: verseReference !== "" ? verseReference : (lastError !== "" ? lastError : "Liturgy of the Hours")
@@ -140,14 +143,42 @@ Item {
     ])
   }
 
-  function dismissHourNotifications() {
-    var titles = Model.hourNotificationTitles()
-    for (var i = 0; i < titles.length; i++) {
+  function dismissTitles(titles) {
+    var list = titles || []
+    for (var i = 0; i < list.length; i++) {
       Quickshell.execDetached([
         omarchyPath + "/bin/omarchy-notification-dismiss",
-        titles[i]
+        list[i]
       ])
     }
+  }
+
+  function dismissHourNotifications() {
+    dismissTitles(Model.hourNotificationTitles())
+  }
+
+  function dismissPluginNotifications() {
+    dismissTitles(Model.pluginNotificationTitles())
+  }
+
+  function prepareOffice() {
+    root.office = Model.buildOffice(clock.date, featured, root.officeBook, todayIso())
+    return root.office
+  }
+
+  function notifyOfficeToast() {
+    var built = prepareOffice()
+    var args = [
+      omarchyPath + "/bin/omarchy-notification-send",
+      "--app-name", "Liturgy of the Hours",
+      "-u", "critical",
+      "-g", "󰂚",
+      "--exec", "omarchy-shell io.github.mohuddle.liturgy-of-the-hours office"
+    ]
+    if (iconPath !== "") { args.push("--image"); args.push(iconPath) }
+    args.push(Model.officeNotificationTitle())
+    args.push(Model.officeNotificationBody(built))
+    Quickshell.execDetached(args)
   }
 
   function notifyHour(hour) {
@@ -203,6 +234,7 @@ Item {
     onExited: function(code) {
       if (code !== 0) { root.lastError = "Couldn’t create the hours state directory."; return }
       versesFile.reload()
+      officeFile.reload()
       cacheFile.reload()
     }
   }
@@ -215,6 +247,13 @@ Item {
       if (root.loaded) root.refreshIfStale()
     }
     onLoadFailed: root.lastError = "Couldn’t load the bundled BSB catalogue."
+  }
+
+  property FileView officeFile: FileView {
+    path: root.officePath
+    printErrors: false
+    onLoaded: root.officeBook = root.parse(text(), {})
+    onLoadFailed: root.officeBook = ({})
   }
 
   property FileView cacheFile: FileView {
