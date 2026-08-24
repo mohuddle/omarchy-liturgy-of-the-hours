@@ -104,6 +104,8 @@ Panel {
     return hour.time || hour.defaultTime || ""
   }
 
+  onShowingOfficeChanged: if (showingOffice && officeFlick) officeFlick.contentY = 0
+
   KeyboardPanel {
     id: panel
     anchorItem: root.anchorItem
@@ -113,23 +115,29 @@ Panel {
     centerOnBar: false
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(520))
-    contentHeight: panel.fittedContentHeight(column.implicitHeight, Style.space(root.showingOffice ? 560 : 420))
+    contentHeight: root.showingOffice
+      ? panel.fittedContentHeight(headerBox.height + Style.space(18) + officeColumn.implicitHeight)
+      : panel.fittedContentHeight(headerBox.height + Style.space(18) + column.implicitHeight, Style.space(root.showingSettings ? 520 : 420))
 
     PanelKeyCatcher {
       id: keyCatcher
       anchors.fill: parent
+      clip: true
       onCloseRequested: root.close()
       onTabRequested: function(direction) { root.switchPanel(direction) }
       onTextKey: function(t) { if (t === "r" || t === "R") root.refresh() }
+      onMoveRequested: function(dx, dy) {
+        if (!officeFlick.visible || officeFlick.height <= 0) return
+        var maxY = Math.max(0, officeFlick.contentHeight - officeFlick.height)
+        officeFlick.contentY = Math.max(0, Math.min(maxY, officeFlick.contentY + dy * Style.space(40)))
+      }
 
-      Column {
-        id: column
-        width: parent.width
-        spacing: Style.space(18)
-
-        Item {
-          width: parent.width
-          height: Math.max(cross.height, titleColumn.implicitHeight, gear.height)
+      Item {
+        id: headerBox
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: Math.max(cross.height, titleColumn.implicitHeight, gear.height)
 
           JerusalemCross {
             id: cross
@@ -212,8 +220,16 @@ Panel {
           }
         }
 
+        Column {
+          id: column
+          visible: !root.showingOffice
+          anchors.top: headerBox.bottom
+          anchors.topMargin: Style.space(18)
+          width: parent.width
+          spacing: Style.space(18)
+
         Row {
-          visible: !root.showingSettings && !root.showingOffice
+          visible: !root.showingSettings
           width: parent.width
           spacing: Style.space(28)
 
@@ -295,61 +311,6 @@ Panel {
         }
 
         Column {
-          id: officeColumn
-          visible: root.showingOffice && !root.showingSettings
-          width: parent.width
-          spacing: Style.space(12)
-
-          Text {
-            width: parent.width
-            textFormat: Text.PlainText
-            text: root.service && root.service.office ? root.service.office.heading : ""
-            color: root.foreground
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.body
-            wrapMode: Text.WordWrap
-          }
-          Text {
-            width: parent.width
-            textFormat: Text.PlainText
-            text: root.service && root.service.office ? root.service.office.hourName : ""
-            color: root.accent
-            font.family: root.fontFamily
-            font.pixelSize: Style.font.subtitle
-            font.bold: true
-            wrapMode: Text.WordWrap
-          }
-
-          Repeater {
-            model: root.service && root.service.office ? root.service.office.sections : []
-            delegate: Column {
-              required property var modelData
-              width: officeColumn.width
-              spacing: Style.space(4)
-
-              Text {
-                width: parent.width
-                textFormat: Text.PlainText
-                text: modelData.label ? String(modelData.label).toUpperCase() : ""
-                color: root.muted
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.caption
-                font.bold: true
-              }
-              Text {
-                width: parent.width
-                textFormat: Text.PlainText
-                text: modelData.body || ""
-                color: root.foreground
-                font.family: root.fontFamily
-                font.pixelSize: Style.font.body
-                wrapMode: Text.WordWrap
-              }
-            }
-          }
-        }
-
-        Column {
           id: settingsColumn
           visible: root.showingSettings
           width: parent.width
@@ -399,7 +360,74 @@ Panel {
             wrapMode: Text.WordWrap
           }
         }
+        }
+
+        Flickable {
+          id: officeFlick
+          visible: root.showingOffice && !root.showingSettings
+          anchors.top: headerBox.bottom
+          anchors.topMargin: Style.space(18)
+          anchors.left: parent.left
+          anchors.right: parent.right
+          anchors.bottom: parent.bottom
+          clip: true
+          boundsBehavior: Flickable.StopAtBounds
+          flickableDirection: Flickable.VerticalFlick
+          contentWidth: width
+          contentHeight: officeColumn.implicitHeight
+
+          Column {
+            id: officeColumn
+            width: officeFlick.width
+            spacing: Style.space(14)
+
+            Text {
+              width: parent.width
+              textFormat: Text.PlainText
+              text: root.service && root.service.office ? root.service.office.hourName : ""
+              color: root.accent
+              font.family: root.fontFamily
+              font.pixelSize: Style.font.subtitle
+              font.bold: true
+              wrapMode: Text.Wrap
+            }
+
+            Repeater {
+              model: root.service && root.service.office ? root.service.office.sections : []
+              delegate: Column {
+                required property var modelData
+                width: officeColumn.width
+                spacing: Style.space(6)
+
+                Text {
+                  width: parent.width
+                  textFormat: Text.PlainText
+                  text: modelData.label ? String(modelData.label).toUpperCase() : ""
+                  color: root.muted
+                  font.family: root.fontFamily
+                  font.pixelSize: Style.font.caption
+                  font.bold: true
+                }
+                Repeater {
+                  model: String(modelData.body || "").split("\n")
+                  delegate: Text {
+                    required property string modelData
+                    width: officeColumn.width
+                    visible: modelData.length > 0
+                    textFormat: Text.PlainText
+                    text: modelData
+                    color: root.foreground
+                    font.family: root.fontFamily
+                    font.pixelSize: Style.font.body
+                    wrapMode: Text.Wrap
+                    lineHeight: 1.2
+                    lineHeightMode: Text.ProportionalHeight
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     }
   }
-}
