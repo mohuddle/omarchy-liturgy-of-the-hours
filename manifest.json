@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.mohuddle.liturgy-of-the-hours",
   "name": "Liturgy of the Hours",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "author": "mohuddle",
   "description": "Jerusalem Cross bar widget with the canonical hours, a brief office, a church-bell reminder, and a daily BSB Scripture.",
   "license": "MIT",

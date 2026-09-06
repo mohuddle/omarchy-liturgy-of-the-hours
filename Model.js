@@ -299,8 +299,22 @@ function nextPosition(position, length, style, salt) {
   return hash % length
 }
 
+var MAX_CACHE_BYTES = 65536
+var MAX_DATA_BYTES = 262144
+var MAX_REFERENCE = 200
+var MAX_VERSE = 4096
+var MAX_NOTIFY = 1500
+
 function cleanVerseText(raw) {
-  return String(raw || "").replace(/\s+/g, " ").trim()
+  var text = String(raw || "").replace(/\s+/g, " ").trim()
+  return text.length <= MAX_VERSE ? text : text.substring(0, MAX_VERSE)
+}
+
+function plainText(value, limit) {
+  var max = limit === undefined ? MAX_NOTIFY : limit
+  var text = String(value || "").replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+  text = text.replace(/&/g, "").replace(/</g, "").replace(/>/g, "")
+  return text.length <= max ? text : text.substring(0, max)
 }
 
 function fileUrlToPath(url) {
@@ -326,8 +340,9 @@ function verseFromCatalog(catalog, position) {
   var item = verses[idx] || {}
   var text = cleanVerseText(item.text)
   if (text === "") return null
+  var reference = plainText(item.reference || verseForPosition(idx), MAX_REFERENCE)
   return {
-    reference: String(item.reference || verseForPosition(idx)),
+    reference: reference,
     text: text,
     translation: "Berean Standard Bible",
     translationId: "bsb"
@@ -432,9 +447,52 @@ function dueNotifications(now, settings, lastNotified, graceMinutes) {
   return due
 }
 
+function parseCache(raw) {
+  var source = String(raw || "")
+  if (source.length > MAX_CACHE_BYTES) return null
+  var trimmed = source.replace(/^\s+|\s+$/g, "")
+  if (trimmed === "") {
+    return { date: "", translation: "", verse_position: -1, reference: "", text: "", last_notified: {} }
+  }
+  try {
+    var data = JSON.parse(trimmed)
+    if (!data || typeof data !== "object") return null
+    var notified = {}
+    var incoming = data.last_notified && typeof data.last_notified === "object" ? data.last_notified : {}
+    var ids = ["morning", "prime", "terce", "sext", "none", "evening"]
+    for (var i = 0; i < ids.length; i++) {
+      var stamp = incoming[ids[i]]
+      if (typeof stamp === "string" && /^\d{4}-\d{2}-\d{2}$/.test(stamp)) notified[ids[i]] = stamp
+    }
+    var position = data.verse_position === undefined || data.verse_position === null ? -1 : Number(data.verse_position)
+    if (!isFinite(position) || position < -1 || position > 10000) return null
+    return {
+      date: typeof data.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(data.date) ? data.date : "",
+      translation: data.translation === "bsb" ? "bsb" : "",
+      verse_position: position,
+      reference: plainText(data.reference, MAX_REFERENCE),
+      text: cleanVerseText(data.text),
+      last_notified: notified
+    }
+  } catch (e) {
+    return null
+  }
+}
+
+function serializeCache(state) {
+  return JSON.stringify({
+    date: state.date || "",
+    translation: state.translation || "",
+    verse_position: state.verse_position,
+    reference: plainText(state.reference, MAX_REFERENCE),
+    text: cleanVerseText(state.text),
+    last_notified: state.last_notified || {}
+  }, null, 2) + "\n"
+}
+
 function notificationTitle(hour) {
   if (!hour) return "Liturgy of the Hours"
-  return hour.name + " — " + hour.traditional
+  return plainText(hour.name + " — " + hour.traditional, 120)
 }
 
 function hourNotificationTitles() {
@@ -448,7 +506,7 @@ function notificationBody(hour, verseReference) {
     if (hour.invitatory) lines.push(hour.invitatory)
   }
   if (verseReference) lines.push("Today’s Scripture: " + verseReference)
-  return lines.join("\n")
+  return plainText(lines.join("\n"), MAX_NOTIFY)
 }
 
 function verseForPosition(position) {
@@ -826,7 +884,7 @@ function officeNotificationBody(office) {
     lines.push(section.label.toUpperCase())
     lines.push(section.body)
   }
-  return lines.join("\n")
+  return plainText(lines.join("\n"), MAX_NOTIFY)
 }
 
 if (typeof module !== "undefined") {
@@ -843,7 +901,13 @@ if (typeof module !== "undefined") {
     choice: choice,
     boolSetting: boolSetting,
     nextPosition: nextPosition,
+    MAX_CACHE_BYTES: MAX_CACHE_BYTES,
+    MAX_DATA_BYTES: MAX_DATA_BYTES,
+    MAX_NOTIFY: MAX_NOTIFY,
     cleanVerseText: cleanVerseText,
+    plainText: plainText,
+    parseCache: parseCache,
+    serializeCache: serializeCache,
     fileUrlToPath: fileUrlToPath,
     catalogVerses: catalogVerses,
     verseFromCatalog: verseFromCatalog,

@@ -13,7 +13,7 @@ Plugin id: `io.github.mohuddle.liturgy-of-the-hours`
 - Rotates a curated BSB passage once per local calendar day.
 - Sends one Omarchy notification at each enabled hour (with a five-minute grace window). Hour toasts stay on screen until you click them or the Jerusalem Cross, and a church bell rings when they appear.
 - Bell beside the gear opens a brief office for the current hour: the liturgical day, the chapter, the short respond, a collect for the day and hour, and a memorial collect. That toast replaces the hour reminder and stays until you dismiss it.
-- Remembers reminder state at `~/.local/state/omarchy/settings/liturgy-of-the-hours.json`.
+- Remembers reminder state at `~/.local/state/omarchy/settings/liturgy-of-the-hours.json` (mode `0600`) through a small Python helper. Bundled `data/verses.json` and `data/office.json` are read the same way.
 
 The plugin does not overwrite `~/.config/omarchy/shell.json` except to add or update its own bar-widget entry when you enable it or change its settings. No sudo or pkexec is required. There is no translation picker; Scripture is always BSB.
 
@@ -67,10 +67,10 @@ No extra packages are installed. No sudo or pkexec is required. No network acces
 omarchy plugin remove io.github.mohuddle.liturgy-of-the-hours
 ```
 
-That disables the widget and deletes the plugin checkout. Optional: remove only this plugin’s reminder state:
+That disables the widget and deletes the plugin checkout. Reminder state is kept at:
 
-```bash
-rm -f ~/.local/state/omarchy/settings/liturgy-of-the-hours.json
+```
+~/.local/state/omarchy/settings/liturgy-of-the-hours.json
 ```
 
 Removal does not touch other Omarchy configuration.
@@ -80,6 +80,7 @@ Removal does not touch other Omarchy configuration.
 ```bash
 omarchy plugin validate .
 node tests/model.test.js
+python3 tests/test_store.py
 ```
 
 ## License

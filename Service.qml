@@ -10,11 +10,9 @@ Item {
   property var settings: ({})
   readonly property string home: Quickshell.env("HOME")
   readonly property string omarchyPath: Quickshell.env("OMARCHY_PATH")
-  readonly property string stateDir: home + "/.local/state/omarchy/settings/"
-  readonly property string cachePath: stateDir + "liturgy-of-the-hours.json"
+  readonly property string cachePath: home + "/.local/state/omarchy/settings/liturgy-of-the-hours.json"
+  readonly property string helperPath: Model.fileUrlToPath(Qt.resolvedUrl("bin/hours-store.py"))
   readonly property string iconPath: Qt.resolvedUrl("icon.png").toString().replace(/^file:\/\//, "")
-  readonly property string versesPath: Model.fileUrlToPath(Qt.resolvedUrl("data/verses.json"))
-  readonly property string officePath: Model.fileUrlToPath(Qt.resolvedUrl("data/office.json"))
   readonly property string bellPath: Model.fileUrlToPath(Qt.resolvedUrl("data/church-bell.ogg"))
   readonly property bool notificationsEnabled: Model.boolSetting(setting("notificationsEnabled", true), true)
   readonly property var schedule: Model.scheduleState(clock.date, settings)
@@ -36,16 +34,23 @@ Item {
   property string selectedHourId: ""
   property var officeBook: ({})
   property var office: null
+  property bool ignoreOwnWrite: false
+  property var storeQueue: []
+  property string storeOp: "read-cache"
+  property string pendingPayload: ""
+  property string outBuf: ""
+  property string errBuf: ""
   readonly property string verseTranslation: "Berean Standard Bible"
   readonly property int catalogLength: Model.catalogVerses(catalog).length
   readonly property string statusText: verseReference !== "" ? verseReference : (lastError !== "" ? lastError : "Liturgy of the Hours")
   readonly property string tooltipText: {
-    if (hourIsNow && currentHour) return currentHour.name + " · now"
-    if (nextHour) {
+    var text = "Liturgy of the Hours"
+    if (hourIsNow && currentHour) text = currentHour.name + " · now"
+    else if (nextHour) {
       var until = Model.formatUntil(schedule.nowMinutes, nextHour.minutes, nextHour.tomorrow)
-      return nextHour.name + " " + until + " (" + nextHour.time + ")"
+      text = nextHour.name + " " + until + " (" + nextHour.time + ")"
     }
-    return "Liturgy of the Hours"
+    return Model.plainText(text, 120)
   }
 
   SystemClock {
@@ -59,34 +64,103 @@ Item {
     return v === undefined || v === null ? fallback : v
   }
 
-  function parse(raw, fallback) {
-    try { return JSON.parse(String(raw || "")) } catch (e) { return fallback }
+  function notifyBin(name) {
+    var base = String(omarchyPath || "")
+    if (base.charAt(0) !== "/" || base.indexOf("..") !== -1) return ""
+    return base + "/bin/" + name
   }
 
   function todayIso() { return Model.isoDate(clock.date) }
 
+  function enqueue(op, payload) {
+    storeQueue = storeQueue.concat([{ op: op, payload: payload || "" }])
+    kickStore()
+  }
+
+  function kickStore() {
+    if (storeProc.running || storeQueue.length === 0) return
+    var job = storeQueue[0]
+    var rest = []
+    for (var i = 1; i < storeQueue.length; i++) rest.push(storeQueue[i])
+    storeQueue = rest
+    if (job.op === "write-cache") ignoreOwnWrite = true
+    storeOp = job.op
+    pendingPayload = job.payload || ""
+    outBuf = ""
+    errBuf = ""
+    storeProc.running = true
+  }
+
   function saveCache() {
-    cacheFile.setText(JSON.stringify({
+    enqueue("write-cache", Model.serializeCache({
       date: cachedDate,
       translation: cachedTranslation,
       verse_position: versePosition,
       reference: verseReference,
       text: verseText,
       last_notified: lastNotified
-    }, null, 2) + "\n")
+    }))
   }
 
   function applyCache(raw) {
-    var data = parse(raw, {})
-    cachedDate = String(data.date || "")
-    cachedTranslation = String(data.translation || "")
-    versePosition = data.verse_position === undefined ? -1 : Number(data.verse_position)
-    if (data.reference) verseReference = String(data.reference)
-    if (data.text) verseText = String(data.text)
-    lastNotified = data.last_notified && typeof data.last_notified === "object" ? data.last_notified : ({})
+    var data = Model.parseCache(raw)
+    if (data === null) {
+      lastError = "Couldn’t parse reminder state."
+      return
+    }
+    cachedDate = data.date
+    cachedTranslation = data.translation
+    versePosition = data.verse_position
+    if (data.reference) verseReference = data.reference
+    if (data.text) verseText = data.text
+    lastNotified = data.last_notified
     loaded = true
+    lastError = ""
     refreshIfStale()
     Qt.callLater(checkHours)
+  }
+
+  function applyCatalog(raw) {
+    try {
+      var parsed = JSON.parse(String(raw || ""))
+      if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.verses)) {
+        lastError = "Couldn’t load today’s Scripture."
+        return
+      }
+      catalog = parsed
+      if (loaded) refreshIfStale()
+    } catch (e) {
+      lastError = "Couldn’t load today’s Scripture."
+    }
+  }
+
+  function applyOfficeBook(raw) {
+    try {
+      var parsed = JSON.parse(String(raw || ""))
+      officeBook = parsed && typeof parsed === "object" ? parsed : ({})
+    } catch (e) {
+      officeBook = ({})
+    }
+  }
+
+  function finishStore(code) {
+    deadline.stop()
+    killTimer.stop()
+    if (storeOp === "write-cache") {
+      if (code !== 0) ignoreOwnWrite = false
+      else ownWriteTimer.restart()
+      kickStore()
+      return
+    }
+    if (code !== 0) {
+      lastError = errBuf !== "" ? errBuf.replace(/\s+$/, "") : "Couldn’t read office data."
+      kickStore()
+      return
+    }
+    if (storeOp === "read-verses") applyCatalog(outBuf)
+    else if (storeOp === "read-office") applyOfficeBook(outBuf)
+    else applyCache(outBuf)
+    kickStore()
   }
 
   function advanceIfNeeded() {
@@ -119,7 +193,7 @@ Item {
 
   function load(force) {
     if (catalogLength === 0) {
-      versesFile.reload()
+      enqueue("read-verses", "")
       return
     }
     if (force === true) {
@@ -134,22 +208,16 @@ Item {
   function selectHour(id) { selectedHourId = id || "" }
 
   function playBell() {
-    if (bellPath === "") return
-    Quickshell.execDetached([
-      "sh", "-c",
-      'if command -v pw-play >/dev/null 2>&1; then pw-play --media-role Notification --volume 0.65 "$1"; elif command -v paplay >/dev/null 2>&1; then paplay "$1"; fi',
-      "loth-bell",
-      bellPath
-    ])
+    if (bellPath === "" || bellPath.indexOf("..") !== -1) return
+    Quickshell.execDetached(["/usr/bin/pw-play", "--media-role", "Notification", "--volume", "0.65", "--", bellPath])
   }
 
   function dismissTitles(titles) {
+    var bin = notifyBin("omarchy-notification-dismiss")
+    if (bin === "") return
     var list = titles || []
     for (var i = 0; i < list.length; i++) {
-      Quickshell.execDetached([
-        omarchyPath + "/bin/omarchy-notification-dismiss",
-        list[i]
-      ])
+      Quickshell.execDetached([bin, "--", list[i]])
     }
   }
 
@@ -168,8 +236,10 @@ Item {
 
   function notifyOfficeToast() {
     var built = prepareOffice()
+    var bin = notifyBin("omarchy-notification-send")
+    if (bin === "") return
     var args = [
-      omarchyPath + "/bin/omarchy-notification-send",
+      bin,
       "--app-name", "Liturgy of the Hours",
       "-u", "critical",
       "-g", "󰂚",
@@ -183,8 +253,10 @@ Item {
 
   function notifyHour(hour) {
     if (!hour) return
+    var bin = notifyBin("omarchy-notification-send")
+    if (bin === "") return
     var args = [
-      omarchyPath + "/bin/omarchy-notification-send",
+      bin,
       "--app-name", "Liturgy of the Hours",
       "-u", "critical",
       "-g", "☩",
@@ -209,14 +281,16 @@ Item {
   }
 
   function notifyVerse() {
+    var bin = notifyBin("omarchy-notification-send")
+    if (bin === "") return
     Quickshell.execDetached([
-      omarchyPath + "/bin/omarchy-notification-send",
+      bin,
       "--app-name", "Liturgy of the Hours",
       "-u", "low",
       "-g", "☩",
       "--image", iconPath,
       verseReference !== "" ? verseReference : "Today’s Scripture",
-      verseText !== "" ? verseText : (lastError !== "" ? lastError : "Today’s Scripture is not ready yet.")
+      verseText !== "" ? Model.plainText(verseText, Model.MAX_NOTIFY) : (lastError !== "" ? Model.plainText(lastError, 200) : "Today’s Scripture is not ready yet.")
     ])
   }
 
@@ -228,45 +302,85 @@ Item {
     onTriggered: root.checkHours()
   }
 
+  Timer {
+    id: deadline
+    interval: 15000
+    repeat: false
+    onTriggered: {
+      storeProc.signal(15)
+      killTimer.start()
+    }
+  }
+
+  Timer {
+    id: killTimer
+    interval: 2000
+    repeat: false
+    onTriggered: storeProc.signal(9)
+  }
+
+  Timer {
+    id: ownWriteTimer
+    interval: 400
+    repeat: false
+    onTriggered: root.ignoreOwnWrite = false
+  }
+
   Process {
-    id: ensureDir
-    command: ["mkdir", "-p", root.stateDir]
-    onExited: function(code) {
-      if (code !== 0) { root.lastError = "Couldn’t create the hours state directory."; return }
-      versesFile.reload()
-      officeFile.reload()
-      cacheFile.reload()
+    id: storeProc
+    command: ["/usr/bin/python3", "-I", "-S", root.helperPath, root.storeOp]
+    clearEnvironment: true
+    environment: ({
+      "HOME": root.home || "",
+      "PATH": "/usr/bin",
+      "LC_ALL": "C"
+    })
+    stdinEnabled: root.storeOp === "write-cache"
+    stdout: SplitParser {
+      splitMarker: ""
+      onRead: function(chunk) {
+        root.outBuf += chunk
+        var cap = root.storeOp === "write-cache" ? Model.MAX_CACHE_BYTES : Model.MAX_DATA_BYTES
+        if (root.outBuf.length > cap) {
+          storeProc.signal(15)
+          killTimer.start()
+        }
+      }
+    }
+    stderr: SplitParser {
+      splitMarker: ""
+      onRead: function(chunk) {
+        root.errBuf += chunk
+        if (root.errBuf.length > 200)
+          root.errBuf = root.errBuf.substring(0, 200)
+      }
+    }
+    onStarted: {
+      deadline.restart()
+      if (root.storeOp === "write-cache") storeProc.write(root.pendingPayload)
+    }
+    onExited: function(code) { root.finishStore(code) }
+  }
+
+  FileView {
+    path: root.loaded ? root.cachePath : ""
+    preload: false
+    watchChanges: true
+    blockAllReads: true
+    printErrors: false
+    onFileChanged: if (!root.ignoreOwnWrite) root.enqueue("read-cache", "")
+  }
+
+  Component.onCompleted: {
+    enqueue("read-verses", "")
+    enqueue("read-office", "")
+    enqueue("read-cache", "")
+  }
+
+  Component.onDestruction: {
+    if (storeProc.running) {
+      storeProc.signal(15)
+      killTimer.start()
     }
   }
-
-  property FileView versesFile: FileView {
-    path: root.versesPath
-    printErrors: false
-    onLoaded: {
-      root.catalog = root.parse(text(), { verses: [] })
-      if (root.loaded) root.refreshIfStale()
-    }
-    onLoadFailed: root.lastError = "Couldn’t load the bundled BSB catalogue."
-  }
-
-  property FileView officeFile: FileView {
-    path: root.officePath
-    printErrors: false
-    onLoaded: root.officeBook = root.parse(text(), {})
-    onLoadFailed: root.officeBook = ({})
-  }
-
-  property FileView cacheFile: FileView {
-    path: root.cachePath
-    atomicWrites: true
-    printErrors: false
-    onLoaded: root.applyCache(text())
-    onLoadFailed: {
-      root.loaded = true
-      root.refreshIfStale()
-      Qt.callLater(root.checkHours)
-    }
-  }
-
-  Component.onCompleted: ensureDir.running = true
 }

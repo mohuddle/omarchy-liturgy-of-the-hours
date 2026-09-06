@@ -66,6 +66,19 @@ assert.equal(model.dueNotifications(new Date(2026, 7, 19, 10, 0), {}, {}, 5).len
 
 assert.equal(model.notificationTitle(model.hourById("none")), "None — Ninth Hour")
 assert.ok(model.notificationBody(model.hourById("morning"), "John 3:16").includes("Today’s Scripture: John 3:16"))
+assert.equal(model.plainText("a <img src=x> & b", 80), "a img src=x  b")
+assert.deepEqual(model.parseCache(""), model.parseCache("   "))
+assert.equal(model.parseCache("{not json"), null)
+const cached = model.parseCache(JSON.stringify({
+  date: "2026-08-19",
+  translation: "bsb",
+  verse_position: 2,
+  reference: "John 3:16",
+  text: "For God so loved the world",
+  last_notified: { terce: "2026-08-19", evil: "nope" }
+}))
+assert.equal(cached.reference, "John 3:16")
+assert.deepEqual(cached.last_notified, { terce: "2026-08-19" })
 
 const hourTitles = model.hourNotificationTitles()
 assert.equal(hourTitles.length, 6)
