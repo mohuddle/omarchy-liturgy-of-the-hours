@@ -1,5 +1,7 @@
 # Liturgy of the Hours for Omarchy
 
+![Liturgy icon](branding/liturgy-icon-vibrant.svg)
+
 > Built by [Mobitecture](https://github.com/mohuddle) · *apps, architected.*
 
 An Omarchy Quattro bar widget for the canonical hours. A Jerusalem Cross sits in the bar; click it for today’s hours with the current office highlighted, and today’s Scripture from the Berean Standard Bible.
