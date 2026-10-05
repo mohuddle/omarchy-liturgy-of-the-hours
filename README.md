@@ -1,5 +1,7 @@
 # Liturgy of the Hours for Omarchy
 
+> Built by [Mobitecture](https://github.com/mohuddle) · *apps, architected.*
+
 An Omarchy Quattro bar widget for the canonical hours. A Jerusalem Cross sits in the bar; click it for today’s hours with the current office highlighted, and today’s Scripture from the Berean Standard Bible.
 
 ![Plugin preview](preview.png)
@@ -20,7 +22,7 @@ The plugin does not overwrite `~/.config/omarchy/shell.json` except to add or up
 ## Hours and default times
 
 | Hour | Latin | Traditional | Default |
-|------|-------|-------------|---------|
+|------|-------|-------------|---------| 
 | Morning Prayer | Laudes | Dawn | 06:00 |
 | Prime | Prima | First Hour | 07:00 |
 | Terce | Tertia | Third Hour | 09:00 |
@@ -86,3 +88,6 @@ python3 tests/test_store.py
 ## License
 
 MIT. See [LICENSE](LICENSE). BSB text is CC0; see [NOTICE.md](NOTICE.md).
+
+---
+Made by [Mobitecture](https://github.com/mohuddle) · apps, architected.
